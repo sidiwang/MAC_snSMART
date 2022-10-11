@@ -1,0 +1,83 @@
+# robust MAC-snSMART method 
+
+# Sidi Wang
+# Oct, 2022
+
+
+model{
+  # priors for mu and tau(s)
+  for (j in 1:Nmu){
+   prec.mu[j] <- pow(Prior.mu[j, 2], -2)
+    mu[j] ~ dnorm(Prior.mu[j, 1], prec.mu[j]) 
+  }
+  
+  for (j in 1:Ntau){
+    tau.prec[j] <- pow(Prior.tau[j, 2], -2)
+    tau[j] ~ dnorm(Prior.tau[j, 1], tau.prec[j]) T(0,)
+  }
+  
+  for (j in 1:(NUM_ARMS - 1)){
+    tau_new.prec[j] <- pow(Prior.tau_new[j, 2], -2)
+    tau_new[j] ~ dnorm(Prior.tau_new[j, 1], tau_new.prec[j]) T(0,)
+  }
+  
+  # parameter model
+  for (j in 1:Ntrials){
+    Z[j] ~ dbin(p.exch[j], 1)
+  # theta from exch
+    re[j] ~ dnorm(0, 1)
+    theta.ex[j] <- mu[1] + re[j] * tau[j]
+  # theta from non-exch
+    prec.nex[j] <- pow(Prior.nex[j, 2], -2)
+    theta.nex[j] ~ dnorm(Prior.nex[j, 1], prec.nex[j])
+  # select theta from latent variable
+    theta[j] <- Z[j] * theta.ex[j] + (1 - Z[j]) * theta.nex[j]
+  }
+  
+  for (j in 1:(NUM_ARMS - 1)){
+  # theta_new from exch
+    re_new1[j] ~ dnorm(0, 1)
+    re_new2[j] ~ dnorm(0, 1)
+    theta_new[j] <- mu[j + 1] + re_new1[j] * tau_new[j]
+    theta_new[j + 2] <- mu[j + 1] + re_new2[j] * tau_new[j]
+  }
+  
+  # likelihood 
+  for (j in 1:(Ntrials)){
+    prec.obs[j] <- pow(s[j], -2)
+    y[j] ~ dnorm(theta[j], prec.obs[j])
+  }
+  
+  for (k in 1:3){
+    for (l in 2:3){
+      vcov[k, l] ~ dunif(Prior.cov_ij[1], Prior.cov_ij[2]) 
+      sigma_new[k, l, 1, 1] <- pow(s_new_norm[k], 2)
+      sigma_new[k, l, 1, 2] <- vcov[k, l] * s_new_norm[k] * s_new_norm[l]
+      sigma_new[k, l, 2, 1] <- vcov[k, l] * s_new_norm[k] * s_new_norm[l]
+      sigma_new[k, l, 2, 2] <- pow(s_new_norm[l], 2)
+    }
+  }
+  
+  bias_l_high ~ dnorm(bias_lh, bias_sd[1])
+  bias_l_low ~ dnorm(bias_ll, bias_sd[2])
+  bias_high ~ dnorm(bias_h, bias_sd[3])
+  
+  bias_lh ~ dunif(0, 15)
+  bias_ll ~ dunif(0, 15)
+  bias_h ~ dunif(0, 15)
+  
+  for (k in 1:3){
+    prec.bias[k] <- pow(Prior.bias_sd[k], -2)
+    bias_sd[k] ~ dnorm(0, prec.bias[k]) T(0,)
+  }
+  
+  
+  y_new[1, ] ~ dmnorm.vcov(c(theta[Ntrials], theta_new[3]), sigma_new[1, 2, , ])
+  y_new[2, ] ~ dmnorm.vcov(c(theta[Ntrials], theta_new[4]), sigma_new[1, 3, , ])
+  y_new[3, ] ~ dmnorm.vcov(c(theta_new[1] + bias_lh, theta_new[3]), sigma_new[2, 2, , ])
+  y_new[4, ] ~ dmnorm.vcov(c(theta_new[1] - bias_ll, theta_new[4]), sigma_new[2, 3, , ])
+  y_new[5, ] ~ dmnorm.vcov(c(theta_new[2] + bias_h, theta_new[3]), sigma_new[3, 2, , ])
+  y_new[6, ] ~ dmnorm.vcov(c(theta_new[2] + bias_h, theta_new[4]), sigma_new[3, 3, , ])
+      
+  
+}

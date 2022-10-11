@@ -1,0 +1,24 @@
+# traditional method
+
+# Sidi Wang
+# Oct, 2022
+
+
+model{
+  for (j in 1:(Nmu + 2)){
+    re_new[j] ~ dnorm(0, 1)
+  }
+  
+  for (j in 1:Nmu){
+    theta_new[j] <- mu[j] + re_new[j] * tau_new
+  }
+  
+  theta_new[4] <- mu[2] + re_new[4] * tau_new
+  theta_new[5] <- mu[3] + re_new[5] * tau_new
+  
+  for (j in 1:(Nmu + 2)){
+    prec.obs_new[j] <- pow(s_new[j], -2)
+    y_new[j] ~ dnorm(theta_new[j], prec.obs_new[j])
+  }
+  
+}
