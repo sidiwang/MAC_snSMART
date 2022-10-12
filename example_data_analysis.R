@@ -20,7 +20,7 @@ sigma_2h <- sd_ij[k + 5]
 
 sigma_pl <- sigma_ph <- sigma_ll <- sigma_lh <- sigma_hl <- sigma_hh <- 100
 
-SIMULATION_N <- 10 # set the number of simulations
+SIMULATION_N <- 30000 # set the number of simulations
 
 # prepare NULL vectors for for loops
 trad_mathod_final_mean  <- trad_mathod_PL_CI <- trad_mathod_PH_CI  <- RMS_final_mean <- RMS_PL_CI <- RMS_PH_CI <- REX_INV_final_mean <- REX_INV_PL_CI <- REX_INV_PH_CI  <- BJSM_final_mean <- BJSM_PL_CI <- BJSM_PH_CI <- NULL
