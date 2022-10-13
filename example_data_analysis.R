@@ -1,7 +1,5 @@
 
-setwd("/home/sidiwang/co-data/appendix")
 source("simulation_function.R")
-set.seed(66295)
 
 mu <- c(-2.99, -3.44, -2.41) # set true mean and true sd for simulation purpose
 sd_ij <- c(0.7713192, 0.65, 0.67, 0.64, 0.67, 0.64) # first value is obtained from natural history data
@@ -262,7 +260,7 @@ result <- foreach(
       Ntrials = length(Y_k) + 1,
       NUM_ARMS = NUM_ARMS,
       y = y,
-      s_new_norm = c(s_1p * 1.5, s_1l, s_1h, s_2l, s_2h),
+      s_new_norm = c(s_1p, s_1l, s_1h, s_2l, s_2h),
       s = c(s_k, s_1p),
       y_new = Y_ij,
       Prior.cov_ij = c(-1, 1),
@@ -272,7 +270,6 @@ result <- foreach(
       bias_l_low = bias_l_low,
       bias_high = bias_h,
       Prior.bias_sd = c(s_1l, s_1l, s_1h) / 4,
-      # Prior.bias_sd = c(s_1l_patient, s_1l_patient, s_1h_patient) * 2,
       Prior.tau = matrix(c(rep(0, length(y)), rep(s_1p, length(y))), ncol = 2) / 2,
       Prior.tau_new = matrix(c(0, 0, s_1l, s_1h), ncol = 2) / 2,
       Prior.mu = matrix(c(mu[1], mu[2], mu[3], sd(trialData$Y_1[which(trialData$trt1 == 1)]), sd(trialData$Y_1[which(trialData$trt1 == 2)]), sd(trialData$Y_1[which(trialData$trt1 == 3)])), ncol = 2),
@@ -284,19 +281,19 @@ result <- foreach(
   posterior_sample_RMS <- rjags::coda.samples(
     jag,
     c("mu", "Z", "tau", "tau_new", "theta", "theta_new", "s", "s_new_norm"),
-    MCMC_SAMPLE
+    MCMC_SAMPLE * 2
   )
 
   RMS <- as.data.frame(posterior_sample_RMS[[1]])
   RMS$PL <- RMS$`theta_new[1]` - RMS$`theta[2]`
   RMS$PH <- RMS$`theta_new[2]` - RMS$`theta[2]`
 
-  RMS_mean_estimate <- apply(RMS, 2, mean)
-  RMS_tmp_mean <- c(RMS_mean_estimate["theta[2]"], RMS_mean_estimate["theta_new[1]"], RMS_mean_estimate["theta_new[2]"], RMS_mean_estimate["PL"], RMS_mean_estimate["PH"])
+  RMS_mean_estimate <- summary(posterior_sample_RMS)$statistics[, 1] #apply(RMS, 2, mean)
+  RMS_tmp_mean <- c(RMS_mean_estimate["theta[2]"], RMS_mean_estimate["theta_new[1]"], RMS_mean_estimate["theta_new[2]"], apply(RMS, 2, mean)["PL"], apply(RMS, 2, mean)["PH"])
   RMS_final_mean <- rbind(RMS_final_mean, RMS_tmp_mean)
 
   RMS_tmp_Z <- RMS_mean_estimate[c("Z[1]", "Z[2]", "Z[3]", "Z[4]", "Z[5]", "Z[6]")]
-  RMS_tmp_response_rate_posterior_mean <- colMeans(RMS[, c("mu[1]", "mu[2]", "mu[3]", "theta[2]", "theta_new[1]", "theta_new[2]", "theta_new[3]", "theta_new[4]")])
+  RMS_tmp_response_rate_posterior_mean <- RMS_mean_estimate[c("mu[1]", "mu[2]", "mu[3]", "theta[2]", "theta_new[1]", "theta_new[2]", "theta_new[3]", "theta_new[4]")]
   RMS_tmp_hdi <- HDInterval::hdi(RMS, COVERAGE_RATE)
   RMS_P_CI_tmp <- RMS_tmp_hdi[, "theta[2]"]
   RMS_P_CI <- rbind(RMS_P_CI, RMS_P_CI_tmp)
@@ -340,27 +337,24 @@ result <- foreach(
 
   ############################ BJSM ################################
 
-  # out = RBesT::mixfit(RMS$`theta[2]`, Nc = 2, type = "norm")
-  # nmix = RBesT::mixnorm(rob = c(out[1, 1], out[2, 1], out[3, 1]), inf = c(out[1, 2], out[2, 2], out[3, 2]), sigma = sd(new_trial_data$Y_1[which(new_trial_data$trt1 == 1)])/sqrt(length(new_trial_data$Y_1[which(new_trial_data$trt1 == 1)])))
-  # ESS = RBesT::ess(nmix)
-  # ESS_final = ifelse(ESS < 0, 0, ceiling(ESS))
   study <- c("NH")
   n_dat <- c(25)
   y_dat <- c(-1.04)
   y.se_dat <- c(0.7713192)
   dat <- data.frame("study" = study, "n" = n_dat, "y" = y_dat, "y.se" = y.se_dat)
   tau_sigma <- sd(trialData$Y_1[which(trialData$trt1 == 1)]) / sqrt(length(which(trialData$trt1 == 1)))
-  p_sigma <- sd(trialData$Y_1[which(trialData$trt1 == 1)])
+  p_sigma <- y.se_dat * sqrt(25) #sd(trialData$Y_1[which(trialData$trt1 == 1)])
+  options(RBesT.MC.control=list(adapt_delta=0.999))
   map_mcmc <- RBesT::gMAP(cbind(y, y.se) ~ 1 | study,
     weights = n, data = dat,
     family = gaussian,
     beta.prior = cbind(-4, p_sigma),
     iter = 10000,
-    tau.dist = "HalfNormal", tau.prior = cbind(0, tau_sigma)
+    tau.dist = "HalfNormal", tau.prior = cbind(0, p_sigma/2) #tau_sigma)
   )
-  print(map_mcmc)
+  #print(map_mcmc)
   map <- RBesT::automixfit(map_mcmc)
-  rnMix <- RBesT::robustify(map, weight = RMS_mean_estimate[1], mean = -4)
+  rnMix <- RBesT::robustify(map, weight = 1 - RMS_mean_estimate[1], mean = -4)
   ESS_final <- round(RBesT::ess(rnMix))
   ESS_tmp <- c(ESS_tmp, ESS_final)
   if (ESS_final != 0) {
@@ -380,8 +374,8 @@ result <- foreach(
         data_effect_stageII = new_trial_data$Y_2,
         treatment_stageI = new_trial_data$trt1,
         treatment_stageII = new_trial_data$trt2,
-        mu_guess = mu_guess,
-        var_prior = 1 / c((p_sd_prior * 2)^2, var(new_trial_data$Y_1[which(new_trial_data$trt1 == 2)]), var(new_trial_data$Y_1[which(new_trial_data$trt1 == 3)]))
+        mu_guess = c(-1.04, mu_guess[2:3]),
+        var_prior = 1 / c((p_sd_prior)^2, 100, 100)
       ),
       n.chains = n_MCMC_chain, n.adapt = n.adapt
     )
@@ -527,68 +521,6 @@ colMeans(BJSM_H_CI)
 colMeans(BJSM_PL_CI)
 colMeans(BJSM_PH_CI)
 
-#####################################
-# result summary, just summarize the bias and mse of the results
-## Bias
-# theta
-trad_mathod_bias_response_rate_posterior_mean <- colMeans(trad_mathod_response_rate_posterior_mean[, c("theta_new[1]", "theta_new[2]", "theta_new[3]")] - trueeffect)
-RMS_bias_response_rate_posterior_mean <- colMeans(RMS_response_rate_posterior_mean[, c("theta[2]", "theta_new[1]", "theta_new[2]")] - trueeffect)
-BJSM_bias_response_rate_posterior_mean <- colMeans(BJSM_response_rate_posterior_mean[, c("mu[1]", "mu[2]", "mu[3]")] - trueeffect)
 
-# theta_L - theta_P
-trad_mathod_bias_response_rate_posterior_mean[4] <- mean((trad_mathod_response_rate_posterior_mean[, c("theta_new[1]", "theta_new[2]", "theta_new[3]")][, 2] - trad_mathod_response_rate_posterior_mean[, c("theta_new[1]", "theta_new[2]", "theta_new[3]")][, 1]) - (mu_l - mu_p))
-# theta_H - theta_P
-trad_mathod_bias_response_rate_posterior_mean[5] <- mean((trad_mathod_response_rate_posterior_mean[, c("theta_new[1]", "theta_new[2]", "theta_new[3]")][, 3] - trad_mathod_response_rate_posterior_mean[, c("theta_new[1]", "theta_new[2]", "theta_new[3]")][, 1]) - (mu_h - mu_p))
-
-# theta_L - theta_P
-RMS_bias_response_rate_posterior_mean[4] <- mean((RMS_response_rate_posterior_mean[, c("theta[2]", "theta_new[1]", "theta_new[2]")][, 2] - RMS_response_rate_posterior_mean[, c("theta[2]", "theta_new[1]", "theta_new[2]")][, 1]) - (mu_l - mu_p))
-# theta_H - theta_ P
-RMS_bias_response_rate_posterior_mean[5] <- mean((RMS_response_rate_posterior_mean[, c("theta[2]", "theta_new[1]", "theta_new[2]")][, 3] - RMS_response_rate_posterior_mean[, c("theta[2]", "theta_new[1]", "theta_new[2]")][, 1]) - (mu_h - mu_p))
-
-# theta_L - theta_P
-BJSM_bias_response_rate_posterior_mean[4] <- mean((BJSM_response_rate_posterior_mean[, c("mu[1]", "mu[2]", "mu[3]")][, 2] - BJSM_response_rate_posterior_mean[, c("mu[1]", "mu[2]", "mu[3]")][, 1]) - (mu_l - mu_p))
-# theta_H - theta_ P
-BJSM_bias_response_rate_posterior_mean[5] <- mean((BJSM_response_rate_posterior_mean[, c("mu[1]", "mu[2]", "mu[3]")][, 3] - BJSM_response_rate_posterior_mean[, c("mu[1]", "mu[2]", "mu[3]")][, 1]) - (mu_h - mu_p))
-
-########################################################################################################################################################
-
-## Mse
-# theta
-trad_mathod_rmse_response_rate_posterior_mean <- sqrt(trad_mathod_bias_response_rate_posterior_mean[1:3]^2 + diag(var(trad_mathod_response_rate_posterior_mean[, c("theta_new[1]", "theta_new[2]", "theta_new[3]")])))
-RMS_rmse_response_rate_posterior_mean <- sqrt(RMS_bias_response_rate_posterior_mean[1:3]^2 + diag(var(RMS_response_rate_posterior_mean[, c("theta[2]", "theta_new[1]", "theta_new[2]")])))
-BJSM_rmse_response_rate_posterior_mean <- sqrt(BJSM_bias_response_rate_posterior_mean[1:3]^2 + diag(var(BJSM_response_rate_posterior_mean[, c("mu[1]", "mu[2]", "mu[3]")])))
-
-# theta_L - theta_P
-trad_mathod_rmse_response_rate_posterior_mean[4] <- sqrt(trad_mathod_bias_response_rate_posterior_mean[4]^2 + var(trad_mathod_response_rate_posterior_mean[, "theta_new[2]"] - trad_mathod_response_rate_posterior_mean[, "theta_new[1]"]))
-RMS_rmse_response_rate_posterior_mean[4] <- sqrt(RMS_bias_response_rate_posterior_mean[4]^2 + var(RMS_response_rate_posterior_mean[, "theta_new[1]"] - RMS_response_rate_posterior_mean[, "theta[2]"]))
-BJSM_rmse_response_rate_posterior_mean[4] <- sqrt(BJSM_bias_response_rate_posterior_mean[4]^2 + var(BJSM_response_rate_posterior_mean[, "mu[2]"] - BJSM_response_rate_posterior_mean[, "mu[1]"]))
-
-# theta_H - theta_P
-trad_mathod_rmse_response_rate_posterior_mean[5] <- sqrt(trad_mathod_bias_response_rate_posterior_mean[5]^2 + var(trad_mathod_response_rate_posterior_mean[, "theta_new[3]"] - trad_mathod_response_rate_posterior_mean[, "theta_new[1]"]))
-RMS_rmse_response_rate_posterior_mean[5] <- sqrt(RMS_bias_response_rate_posterior_mean[5]^2 + var(RMS_response_rate_posterior_mean[, "theta_new[2]"] - RMS_response_rate_posterior_mean[, "theta[2]"]))
-BJSM_rmse_response_rate_posterior_mean[5] <- sqrt(BJSM_bias_response_rate_posterior_mean[5]^2 + var(BJSM_response_rate_posterior_mean[, "mu[3]"] - BJSM_response_rate_posterior_mean[, "mu[1]"]))
-
-
-## COVERAGE_RATE
-# pi
-###############################################################
-trad_mathod_cr_response_rate <- colMeans(trad_mathod_response_rate_hdi_coverage_rate)
-RMS_cr_response_rate <- colMeans(RMS_response_rate_hdi_coverage_rate)
-BJSM_cr_response_rate <- colMeans(BJSM_response_rate_hdi_coverage_rate)
-
-
-###############################################################
-## HDI length
-# pi
-###############################################################
-trad_mathod_hdi_length_response_rate <- colMeans(trad_mathod_response_rate_hdi_length)
-RMS_hdi_length_response_rate <- colMeans(RMS_response_rate_hdi_length)
-BJSM_hdi_length_response_rate <- colMeans(BJSM_response_rate_hdi_length)
-
-
-##############################################################
-
-
-
-
-save.image(file = "patientSimuEXPAug1_NSS.RData")
+# save outcome
+save.image(file = "patientSimuEXPOCT12_NSS.RData")
