@@ -1,8 +1,0 @@
-#!/bin/bash
-#SBATCH --job-name=example_withBJSM_NSS
-#SBATCH --time=25:30:00
-#SBATCH --mail-user=sidiwang@umich.edu
-#SBATCH --mem=15GB 
-#SBATCH --cpus-per-task=20
-
-R CMD BATCH --no-save --no-restore /home/sidiwang/co-data/appendix/example_data_analysis.R example_data_analysis.Rout
