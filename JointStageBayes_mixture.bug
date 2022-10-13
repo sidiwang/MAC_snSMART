@@ -24,7 +24,7 @@ model{
 
   # mu_P
   mu1 = c(mu_guess[1], -4)
-  tau1 = c(var_prior[1], 0.1)
+  tau1 = c(var_prior[1], 0.0000001)
   pi1 = c(0.5, 0.5)
   
   mu[1] ~ dnorm(mu1[r1], tau1[r1])
@@ -32,7 +32,7 @@ model{
   
   # mu_L
   mu2 = c(mu_guess[2], -4)
-  tau2 = c(var_prior[2], 0.1)
+  tau2 = c(var_prior[2], 0.0000001)
   pi2 = c(0.5, 0.5)
   
   mu[2] ~ dnorm(mu2[r2], tau2[r2])
@@ -41,14 +41,14 @@ model{
   
   # mu_H
   mu3 = c(mu_guess[3], -4)
-  tau3 = c(var_prior[3], 0.1)
+  tau3 = c(var_prior[3], 0.0000001)
   pi3 = c(0.5, 0.5)
   
   mu[3] ~ dnorm(mu3[r3], tau3[r3])
   r3 ~ dcat(pi3)
   
   
-  alpha ~ dnorm(0, 0.5)
+  alpha ~ dnorm(0, 0.25)
   beta ~ dnorm(0, 1)
   
 }
