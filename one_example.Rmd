@@ -1,0 +1,110 @@
+---
+title: "A Specific Example"
+output: html_document
+date: '2022-10-29'
+---
+
+```{r}
+# load trial data
+load(file = "trial.data.RData")
+
+# new trial data
+trialData <- trial.data$trial.data
+trialData
+
+```
+
+
+```{r}
+# external control (mean and standard deviation)
+historical_data <- cbind(trial.data$Y_k, 0.7713) 
+
+# MCMC setting
+n_MCMC_chain <- 2
+n.adapt <- 4000
+MCMC_SAMPLE <- 10000
+
+# coverage rate of credible interval
+COVERAGE_RATE <- 0.95
+
+# number of treatment arms
+NUM_ARMS <- length(unique(trialData$trt1[!is.na(trialData$trt1)]))
+
+# mean and sd of historical data
+Y_k <- historical_data[, 1]
+s_k <- historical_data[, 2]
+
+# summary level data calculation
+Y_1p <- mean(trialData$Y_1[which(trialData$trt1 == 1)])
+s_1p <- sd(trialData$Y_1[which(trialData$trt1 == 1)]) / sqrt(length(which(trialData$trt1 == 1)))
+
+Y_1l <- mean(trialData$Y_1[which(trialData$trt1 == 2)])
+s_1l <- sd(trialData$Y_1[which(trialData$trt1 == 2)]) / sqrt(length(which(trialData$trt1 == 2)))
+Y_2l <- mean(trialData$Y_2[which(trialData$trt2 == 2)])
+s_2l <- sd(trialData$Y_2[which(trialData$trt2 == 2)]) / sqrt(length(which(trialData$trt2 == 2)))
+
+Y_1h <- mean(trialData$Y_1[which(trialData$trt1 == 3)])
+s_1h <- sd(trialData$Y_1[which(trialData$trt1 == 3)]) / sqrt(length(which(trialData$trt1 == 3)))
+Y_2h <- mean(trialData$Y_2[which(trialData$trt2 == 3)])
+s_2h <- sd(trialData$Y_2[which(trialData$trt2 == 3)]) / sqrt(length(which(trialData$trt2 == 3)))
+
+# calculate the mean treatment effect of group (1p, 2l), (1p, 2h), (1l, 2l), (1l, 2h), (1h, 2l), (1h, 2h)
+cov_data <- na.omit(trialData)
+for (i in c(1:3)) {
+  for (j in c(1:2)) {
+    index <- intersect(which(cov_data$trt1 == i), which(cov_data$trt2 == j + 1))
+    assign(paste0("Y_", i, j + 1), c(mean(cov_data$Y_1[index]), mean(cov_data$Y_2[index])))
+  }
+}
+Y_ij <- rbind(Y_12, Y_13, Y_22, Y_23, Y_32, Y_33)
+
+# threshold of responders and nonresponders
+threshold_l <- -3.1
+
+# calculate the bias
+bias_h <- mean(trialData$Y_1[intersect(which(!is.na(trialData$trt2)), which(trialData$trt1 == 3))]) - Y_1h
+bias_l_low <- Y_1l - mean(trialData$Y_1[intersect(which(trialData$trt2 == 3), which(trialData$trt1 == 2))])
+bias_l_high <- mean(trialData$Y_1[intersect(which(trialData$trt2 == 2), which(trialData$trt1 == 2))]) - Y_1l
+
+# robustification. probability p for the mixture model, here we use p = 0.5 for all
+p.exch <- rep(0.5, nrow(historical_data) + 1)
+
+# all control info
+y = c(-1.04, Y_1p) # -1.04 is the mean treatment effect obtained from external control data
+
+# priors for mu
+mu_guess <- c(-3.5, -3.5, -3.5)
+
+jag <- rjags::jags.model(
+    file = "robust_MAC_snSMART.bugs",
+    data = list(
+      Ntrials = length(Y_k) + 1,
+      NUM_ARMS = NUM_ARMS,
+      y = y, 
+      s = c(s_k, s_1p),
+      y_new = Y_ij,
+      s_new_norm = c(s_1p, s_1l, s_1h, s_2l, s_2h), 
+      Prior.cov_ij = c(-1, 1), # priors for covariance
+      Nmu = 3, # number of \mu
+      Ntau = length(y), # number of sources of control data
+      bias_l_high = bias_l_high,
+      bias_l_low = bias_l_low,
+      bias_high = bias_h,
+      Prior.bias_sd = c(s_1l, s_1l, s_1h) / 4,
+      Prior.tau = matrix(c(rep(0, length(y)), rep(s_1p, length(y))), ncol = 2) / 2,
+      Prior.tau_new = matrix(c(0, 0, s_1l, s_1h), ncol = 2) / 2,
+      Prior.mu = matrix(c(mu_guess[1], mu_guess[2], mu_guess[3], sd(trialData$Y_1[which(trialData$trt1 == 1)]), sd(trialData$Y_1[which(trialData$trt1 == 2)]), sd(trialData$Y_1[which(trialData$trt1 == 3)])), ncol = 2),
+      p.exch = p.exch,
+      Prior.nex = matrix(c(rep(-4, length(y)), rep(10, length(y))), ncol = 2)
+    ),
+    n.chains = n_MCMC_chain, n.adapt = n.adapt
+  )
+  posterior_sample_RMS <- rjags::coda.samples(
+    jag,
+    c("mu", "Z", "tau", "tau_new", "theta", "theta_new", "s", "s_new_norm"),
+    MCMC_SAMPLE * 2
+  )
+
+summary(posterior_sample_RMS)
+```
+
