@@ -8,7 +8,8 @@ Five files are provided:
 - `traditional.bugs` - `JAGS` code of traditional method;
 - `JointStageBayes_mixture.bug` - `JAGS` code of the Bayesian joint stage model proposed by [Fang Fang](https://www.tandfonline.com/doi/abs/10.1080/19466315.2022.2118162);
 - `simulation_function.R` - simulate sample snSMART trial data;
-- `example_data_analysis.R` - the original `R` code used to reproduce the results presented in `Section 6` of our paper (NSAA only).
+- `example_data_analysis.R` - the original `R` code used to reproduce the results presented in `Section 6` of our paper (NSAA only);
+- `one_example.Rmd` - a simple demonstration of robust MAC-snSMART. Data used in this example is stored in file `trial.data.RData`. `one_example.pdf` is the pdf file generated through this rmarkdown file.
 
 To conduct the example data anlaysis yourself, please put all files under one folder, set working directory to that folder, and run `example_data_analysis.R`. The current number of simulations is set to 30,000. Please edit the number of simulations and computing cores according to your needs. DNHS study data is not provided and only summary level data is used in the example data analysis. Details on the RO7239361 trial can be found [here](https://clinicaltrials.gov/ct2/show/NCT03039686).
 
