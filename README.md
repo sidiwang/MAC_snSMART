@@ -1,5 +1,5 @@
 # Robust MAC-snSMART
-### Example data analysis `R` code for paper "Use of natural history data for drug evaluation in Duchenne muscular dystrophy: a Bayesian small sample, sequential, multiple assignement randomized trial design" 
+### Example data analysis `R` code for paper "Dynamic enrichment of Bayesian small sample, sequential, multiple assignment randomized trial (snSMART) design using natural history data: A case study from Duchenne muscular dystrophy" 
 
 We propose a small sample (n), sequential, multiple assignment, randomized trial (snSMART) design that integrates natural history data with data from the placebo arm to increase efficiency. The proposed approach is a multi-stage design evaluating multiple doses of a promising drug versus placebo. To efficiently estimate treatment effects in a snSMART design, we present a robust MAC-snSMART, a robust exchangeable hierarchical model (HM). We reanalyze data from a DMD trial using the proposed method and external control data from the Duchenne Natural History Study (DNHS). Our method's estimators show improved efficiency compared to the original trial. 
 
